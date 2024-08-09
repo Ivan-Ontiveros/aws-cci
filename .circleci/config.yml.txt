@@ -1,0 +1,131 @@
+version: 2.1
+parameters:
+  GHA_Actor:
+    type: string
+    default: ""
+  GHA_Action:
+    type: string
+    default: ""
+  GHA_Event:
+    type: string
+    default: ""
+  GHA_Meta:
+    type: string
+    default: ""
+orbs:
+  node: circleci/node@5.1.0
+jobs:
+  build:
+    docker:
+      - image: cimg/node:20.5.0
+    working_directory: .
+    steps:
+      - checkout
+      - node/install-packages
+      - run:
+          name: Print Working Directory
+          command: pwd
+      - run:
+          name: Build ViteJS App
+          command: npm run build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - dist
+  deploy:
+    docker:
+      - image: ubuntu:20.04
+    working_directory: .
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - SHA256:3tE1zcD2ha4uYTKw0UraHJusul6krF4fgQqFNuoLh1I
+      - run:
+          name: Install scp
+          command: |
+            apt-get update
+            apt-get install -y openssh-client
+      - attach_workspace:
+          at: .
+      - run:
+          name: Print Working Directory
+          command: pwd
+      - run:
+          name: Look in Directory
+          command: ls -ltr
+      - run:
+          name: Create Build Folder with SHA
+          command: mkdir -p build_$CIRCLE_SHA1 && mv dist/* build_$CIRCLE_SHA1
+      - run:
+          name: Backup Current Prod to prod_bak
+          command: |
+            KNOWN_HOSTS=/tmp/known_hosts
+            ssh-keyscan -t ecdsa $VPS_IP >> $KNOWN_HOSTS
+            ssh -o StrictHostKeyChecking=no $VPS_USERNAME@$VPS_IP "
+              rm -rf /var/www/$VPS_URL/prod_bak &&
+              cp -r /var/www/$VPS_URL/prod_live /var/www/$VPS_URL/prod_bak &&
+              rm -f /var/www/$VPS_URL/prod_bak/current
+            "
+      - run:
+          name: Clean Up prod_live
+          command: |
+            ssh -o StrictHostKeyChecking=no $VPS_USERNAME@$VPS_IP "
+              find /var/www/$VPS_URL/prod_live -maxdepth 1 -type d -name 'build_*' -exec rm -rf {} \;
+            "
+      - run:
+          name: Deploy New Build to prod_live
+          command: |
+            scp -o StrictHostKeyChecking=no -r ./build_$CIRCLE_SHA1 $VPS_USERNAME@$VPS_IP:/var/www/$VPS_URL/prod_live
+      - run:
+          name: Update Symlink and Reload Nginx
+          command: |
+            ssh -o StrictHostKeyChecking=no $VPS_USERNAME@$VPS_IP "
+              ln -sfn /var/www/$VPS_URL/prod_live/build_$CIRCLE_SHA1 /var/www/$VPS_URL/prod_live/current &&
+              sudo systemctl reload nginx
+            "
+
+  rollback:
+    docker:
+      - image: cimg/node:20.5.0
+    steps:
+      - run:
+          name: Rollback to Previous Version
+          command: |
+            KNOWN_HOSTS=/tmp/known_hosts
+            ssh-keyscan -t ecdsa $VPS_IP >> $KNOWN_HOSTS
+            ssh -o StrictHostKeyChecking=no $VPS_USERNAME@$VPS_IP "
+              rm -rf /var/www/$VPS_URL/prod_live &&
+              cp -r /var/www/$VPS_URL/prod_bak /var/www/$VPS_URL/prod_live &&
+              LATEST_BUILD_DIR=\$(ls -d /var/www/$VPS_URL/prod_live/build_* | sort | tail -n 1) &&
+              ln -sfn \$LATEST_BUILD_DIR /var/www/$VPS_URL/prod_live/current &&
+              sudo systemctl reload nginx
+            "
+
+workflows:
+  version: 2
+  build-deploy:
+    when: << pipeline.parameters.GHA_Action >>
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: master
+      - deploy:
+          requires:
+            - build
+          filters:
+            branches:
+              only: master
+      - hold_for_rollback:
+          type: approval
+          requires:
+            - deploy
+          filters:
+            branches:
+              only: master
+      - rollback:
+          requires:
+            - hold_for_rollback
+          filters:
+            branches:
+              only: master
