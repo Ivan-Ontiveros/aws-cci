@@ -43,6 +43,18 @@ jobs:
           name: Look in Directory
           command: ls -ltr
       - run:
+          name: Backup Previous Build
+          command: |
+            # Empty the prod_bak directory
+            aws s3 rm s3://aws-cci-poc/prod_bak/ --recursive
+            # Move the latest build from prod_live to prod_bak
+            aws s3 mv s3://aws-cci-poc/prod_live/ s3://aws-cci-poc/prod_bak/ --recursive --exclude "current/*"
+      - run:
+          name: Clean Up prod_live Directory
+          command: |
+            # Remove all files and folders in prod_live except the current folder
+            aws s3 rm s3://aws-cci-poc/prod_live/ --recursive --exclude "current/*"
+      - run:
           name: Create Build Folder with Git SHA
           command: mkdir -p build_$CIRCLE_SHA1 && mv dist/* build_$CIRCLE_SHA1
       # - run:
@@ -66,6 +78,25 @@ jobs:
               --distribution-id $CLOUDFRONT_DISTRIBUTION_ID \
               --paths "/*"
 
+  rollback:
+    docker:
+      - image: ubuntu:20.04
+    steps:
+      - run:
+          name: Rollback to Previous Version
+          command: |
+            # Empty the prod_live directory
+            aws s3 rm s3://aws-cci-poc/prod_live/ --recursive --exclude "current/*"
+            # Move the backup from prod_bak to prod_live
+            aws s3 mv s3://aws-cci-poc/prod_bak/ s3://aws-cci-poc/prod_live/ --recursive
+            # Update the current folder to point to the latest build in prod_live
+            LATEST_BUILD_DIR=$(aws s3 ls s3://aws-cci-poc/prod_live/ --recursive | grep 'build_' | sort | tail -n 1 | awk '{print $4}')
+            aws s3 cp --recursive "s3://aws-cci-poc/prod_live/$LATEST_BUILD_DIR" "s3://aws-cci-poc/prod_live/current/"
+            # Invalidate the CloudFront cache to serve the rolled-back build
+            aws cloudfront create-invalidation \
+              --distribution-id $CLOUDFRONT_DISTRIBUTION_ID \
+              --paths "/*"
+
 workflows:
   version: 2
   build_and_deploy:
@@ -77,6 +108,19 @@ workflows:
       - deploy:
           requires:
             - build
+          filters:
+            branches:
+              only: master
+      - hold_for_rollback:
+          type: approval
+          requires:
+            - deploy
+          filters:
+            branches:
+              only: master
+      - rollback:
+          requires:
+            - hold_for_rollback
           filters:
             branches:
               only: master
