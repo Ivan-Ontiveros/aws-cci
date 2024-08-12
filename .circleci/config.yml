@@ -99,11 +99,15 @@ jobs:
           command: |
             # Empty the prod_live directory
             aws s3 rm s3://iodev-aws-cci-poc/prod_live/ --recursive --exclude "current/*"
+
             # Move the backup from prod_bak to prod_live
-            aws s3 mv s3://iodev-aws-cci-poc/prod_bak/ s3://iodev-aws-cci-poc/prod_live/ --recursive
+            aws s3 cp --recursive s3://iodev-aws-cci-poc/prod_bak/ s3://iodev-aws-cci-poc/prod_live/
+
             # Update the current folder to point to the latest build in prod_live
             LATEST_BUILD_DIR=$(aws s3 ls s3://iodev-aws-cci-poc/prod_live/ --recursive | grep 'build_' | sort | tail -n 1 | awk '{print $4}')
-            aws s3 cp --recursive "s3://iodev-aws-cci-poc/prod_live/$LATEST_BUILD_DIR" "s3://iodev-aws-cci-poc/prod_live/current/"
+            echo "${LATEST_BUILD_DIR}"
+            aws s3 cp --recursive "s3://iodev-aws-cci-poc/prod_live/${LATEST_BUILD_DIR}/" "s3://iodev-aws-cci-poc/prod_live/current/"
+
             # Invalidate the CloudFront cache to serve the rolled-back build
             aws cloudfront create-invalidation \
               --distribution-id $CLOUDFRONT_DISTRIBUTION_ID \
