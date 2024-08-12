@@ -59,12 +59,12 @@ jobs:
           command: |
             aws s3 cp --recursive "./build_${CIRCLE_SHA1}" "s3://iodev-aws-cci-poc/prod_live/build_${CIRCLE_SHA1}/"
             aws s3 cp --recursive "./build_${CIRCLE_SHA1}" "s3://iodev-aws-cci-poc/prod_live/current/"
-      # - run:
-      #     name: Invalidate CloudFront Cache
-      #     command: |
-      #       aws cloudfront create-invalidation \
-      #         --distribution-id $CLOUDFRONT_DISTRIBUTION_ID \
-      #         --paths "/*"
+      - run:
+          name: Invalidate CloudFront Cache
+          command: |
+            aws cloudfront create-invalidation \
+              --distribution-id $CLOUDFRONT_DISTRIBUTION_ID \
+              --paths "/*"
 
 workflows:
   version: 2
