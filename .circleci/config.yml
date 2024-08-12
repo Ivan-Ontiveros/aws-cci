@@ -47,8 +47,10 @@ jobs:
           command: |
             # Empty the prod_bak directory
             aws s3 rm s3://aws-cci-poc/prod_bak/ --recursive
-            # Move the latest build from prod_live to prod_bak
-            aws s3 mv s3://aws-cci-poc/prod_live/ s3://aws-cci-poc/prod_bak/ --recursive --exclude "current/*"
+            # Move everything from prod_live to prod_bak except for the current directory
+            aws s3 ls s3://aws-cci-poc/prod_live/ | grep -v "current" | awk '{print $4}' | while read folder; do
+              aws s3 mv "s3://aws-cci-poc/prod_live/$folder" "s3://aws-cci-poc/prod_bak/$folder" --recursive
+            done
       - run:
           name: Clean Up prod_live Directory
           command: |
