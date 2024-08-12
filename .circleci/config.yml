@@ -2,11 +2,7 @@ version: 2.1
 
 orbs:
   node: circleci/node@5.1.0
-
-# executors:
-#   node-executor:
-#     docker:
-#       - image: circleci/node:18
+  aws-cli: circleci/aws-cli@3.1.0
 
 jobs:
   build:
@@ -34,6 +30,8 @@ jobs:
     steps:
       - attach_workspace:
           at: .
+      - aws-cli/setup:
+          profile-name: default
       - run:
           name: Print Working Directory
           command: pwd
@@ -55,8 +53,8 @@ jobs:
       - run:
           name: Deploy to S3
           command: |
-            aws s3 cp --recursive "./build_${CIRCLE_SHA1}" "s3://aws-cci-poc/prod_live/./build_${CIRCLE_SHA1}/"
-            aws s3 cp --recursive "./build_${CIRCLE_SHA1}" "s3://aws-cci-poc/prod_live/current/"
+            aws s3 cp --recursive "./build_${CIRCLE_SHA1}" "s3://iodev-aws-cci-poc/prod_live/build_${CIRCLE_SHA1}/"
+            aws s3 cp --recursive "./build_${CIRCLE_SHA1}" "s3://iodev-aws-cci-poc/prod_live/current/"
 
 workflows:
   version: 2
