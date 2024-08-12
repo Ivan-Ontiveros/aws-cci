@@ -50,3 +50,7 @@
   display: grid;
   max-width: 100%;
 }
+
+.caption {
+  font-size: 30px;
+}
