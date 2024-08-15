@@ -18,6 +18,9 @@ jobs:
       - run:
           name: Build ViteJS App
           command: npm run build
+      - run:
+          name: Generate buildCommitSHA.txt
+          command: echo $CIRCLE_SHA1 > dist/buildCommitSHA.txt
       - persist_to_workspace:
           root: .
           paths:
