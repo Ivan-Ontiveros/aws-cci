@@ -49,20 +49,20 @@ jobs:
           name: Backup Current Live to Backup Folder
           command: |
             # Empty the backup folder
-            aws s3 rm s3://aws-cci-poc/backup/ --recursive
+            aws s3 rm s3://iodev-aws-cci-poc/backup/ --recursive
 
             # Move the current live content to the backup folder
-            aws s3 mv s3://aws-cci-poc/live/ s3://aws-cci-poc/backup/ --recursive
+            aws s3 mv s3://iodev-aws-cci-poc/live/ s3://iodev-aws-cci-poc/backup/ --recursive
       - run:
           name: Clean Up Live Directory
           command: |
             # Clear the live folder
-            aws s3 rm s3://aws-cci-poc/live/ --recursive
+            aws s3 rm s3://iodev-aws-cci-poc/live/ --recursive
       - run:
           name: Deploy New Build to Live
           command: |
             # Copy the new build files from the dist folder to the live folder
-            aws s3 cp --recursive dist/ s3://aws-cci-poc/live/
+            aws s3 cp --recursive dist/ s3://iodev-aws-cci-poc/live/
       - run:
           name: Invalidate CloudFront Cache
           command: |
@@ -90,10 +90,10 @@ jobs:
           name: Rollback to Previous Version
           command: |
             # Clear the live folder
-            aws s3 rm s3://aws-cci-poc/live/ --recursive
+            aws s3 rm s3://iodev-aws-cci-poc/live/ --recursive
 
             # Restore the backup to the live folder
-            aws s3 cp --recursive s3://aws-cci-poc/backup/ s3://aws-cci-poc/live/
+            aws s3 cp --recursive s3://iodev-aws-cci-poc/backup/ s3://iodev-aws-cci-poc/live/
 
             # Invalidate the CloudFront cache to serve the rolled-back build
             aws cloudfront create-invalidation \
