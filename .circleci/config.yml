@@ -46,34 +46,23 @@ jobs:
           name: Look in Directory
           command: ls -ltr
       - run:
-          name: Backup Previous Build
+          name: Backup Current Live to Backup Folder
           command: |
-            # Empty the prod_bak directory
-            aws s3 rm s3://iodev-aws-cci-poc/prod_bak/ --recursive
-            # Move the latest build from prod_live to prod_bak
-            aws s3 mv s3://iodev-aws-cci-poc/prod_live/ s3://iodev-aws-cci-poc/prod_bak/ --recursive --exclude "current/*"
+            # Empty the backup folder
+            aws s3 rm s3://aws-cci-poc/backup/ --recursive
+
+            # Move the current live content to the backup folder
+            aws s3 mv s3://aws-cci-poc/live/ s3://aws-cci-poc/backup/ --recursive
       - run:
-          name: Clean Up prod_live Directory
+          name: Clean Up Live Directory
           command: |
-            # Remove all files and folders in prod_live except the current folder
-            aws s3 rm s3://iodev-aws-cci-poc/prod_live/ --recursive --exclude "current/*"
+            # Clear the live folder
+            aws s3 rm s3://aws-cci-poc/live/ --recursive
       - run:
-          name: Create Build Folder with Git SHA
-          command: mkdir -p build_$CIRCLE_SHA1 && mv dist/* build_$CIRCLE_SHA1
-      # - run:
-      #     name: Rename Build Folder with Git SHA
-      #     command: |
-      #       export GIT_SHA=$(git rev-parse --short HEAD)
-      #       mv dist "build_${GIT_SHA}"
-      #       echo "export BUILD_DIR=build_${GIT_SHA}" >> $BASH_ENV
-      - run:
-          name: Look in Directory
-          command: ls -ltr
-      - run:
-          name: Deploy to S3
+          name: Deploy New Build to Live
           command: |
-            aws s3 cp --recursive "./build_${CIRCLE_SHA1}" "s3://iodev-aws-cci-poc/prod_live/build_${CIRCLE_SHA1}/"
-            aws s3 cp --recursive "./build_${CIRCLE_SHA1}" "s3://iodev-aws-cci-poc/prod_live/current/"
+            # Copy the new build files from the dist folder to the live folder
+            aws s3 cp --recursive dist/ s3://aws-cci-poc/live/
       - run:
           name: Invalidate CloudFront Cache
           command: |
