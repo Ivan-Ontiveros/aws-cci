@@ -42,17 +42,17 @@ jobs:
       - run:
           name: Print Working Directory
           command: pwd
-      - run:
-          name: Nuke the S3 Bucket
-          command: |
-            # Remove all objects in the S3 bucket
-            aws s3 rm s3://iodev-aws-cci-poc/ --recursive
-      - run:
-          name: Create New Folder Structure
-          command: |
-            # Create the live and backup folders
-            aws s3api put-object --bucket iodev-aws-cci-poc --key live/
-            aws s3api put-object --bucket iodev-aws-cci-poc --key backup/
+      # - run:
+      #     name: Nuke the S3 Bucket
+      #     command: |
+      #       # Remove all objects in the S3 bucket
+      #       aws s3 rm s3://iodev-aws-cci-poc/ --recursive
+      # - run:
+      #     name: Create New Folder Structure
+      #     command: |
+      #       # Create the live and backup folders
+      #       aws s3api put-object --bucket iodev-aws-cci-poc --key live/
+      #       aws s3api put-object --bucket iodev-aws-cci-poc --key backup/
       - run:
           name: Backup Current Live to Backup Folder
           command: |
