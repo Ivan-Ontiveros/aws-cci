@@ -51,8 +51,8 @@ jobs:
           name: Create New Folder Structure
           command: |
             # Create the live and backup folders
-            aws s3api put-object --bucket aws-cci-poc --key live/
-            aws s3api put-object --bucket aws-cci-poc --key backup/
+            aws s3api put-object --bucket iodev-aws-cci-poc --key live/
+            aws s3api put-object --bucket iodev-aws-cci-poc --key backup/
       - run:
           name: Backup Current Live to Backup Folder
           command: |
