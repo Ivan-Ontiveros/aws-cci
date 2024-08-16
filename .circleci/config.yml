@@ -69,10 +69,13 @@ jobs:
             # Clear the live folder
             aws s3 rm s3://iodev-aws-cci-poc/live/ --recursive
       - run:
-          name: Deploy New Build to Live
+          name: Deploy New Build to Live with Cache-Control Headers
           command: |
-            # Copy the new build files from the dist folder to the live folder
-            aws s3 cp --recursive dist/ s3://iodev-aws-cci-poc/live/
+            # Copy the top-level files from dist/ with no-cache headers
+            aws s3 cp dist/ s3://iodev-aws-cci-poc/live/ --recursive --exclude "assets/*" --cache-control "no-cache, no-store, must-revalidate"
+
+            # Copy the assets folder with default cache settings
+            aws s3 cp dist/assets/ s3://iodev-aws-cci-poc/live/assets/ --recursive
       - run:
           name: Invalidate CloudFront Cache
           command: |
@@ -102,8 +105,11 @@ jobs:
             # Clear the live folder
             aws s3 rm s3://iodev-aws-cci-poc/live/ --recursive
 
-            # Restore the backup to the live folder
-            aws s3 cp --recursive s3://iodev-aws-cci-poc/backup/ s3://iodev-aws-cci-poc/live/
+            # Restore the assets folder with default cache settings
+            aws s3 cp s3://iodev-aws-cci-poc/backup/assets/ s3://iodev-aws-cci-poc/live/assets/ --recursive
+
+            # Restore the backup to the live folder with no-cache headers
+            aws s3 cp s3://iodev-aws-cci-poc/backup/ s3://iodev-aws-cci-poc/live/ --recursive --exclude "assets/*" --cache-control "no-cache, no-store, must-revalidate"
 
             # Invalidate the CloudFront cache to serve the rolled-back build
             aws cloudfront create-invalidation \
