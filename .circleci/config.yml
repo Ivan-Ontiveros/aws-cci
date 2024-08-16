@@ -57,7 +57,7 @@ jobs:
           name: Backup Current Live to Backup Folder
           command: |
             # Check if the live folder has any content
-            if [ $(aws s3 ls s3://aws-cci-poc/live/ | wc -l) -gt 0 ]; then
+            if [ $(aws s3 ls s3://iodev-aws-cci-poc/live/ | wc -l) -gt 0 ]; then
               echo "Live folder is not empty, moving content to backup..."
               aws s3 mv s3://iodev-aws-cci-poc/live/ s3://iodev-aws-cci-poc/backup/ --recursive
             else
