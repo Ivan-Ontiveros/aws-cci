@@ -43,16 +43,26 @@ jobs:
           name: Print Working Directory
           command: pwd
       - run:
-          name: Look in Directory
-          command: ls -ltr
+          name: Nuke the S3 Bucket
+          command: |
+            # Remove all objects in the S3 bucket
+            aws s3 rm s3://iodev-aws-cci-poc/ --recursive
+      - run:
+          name: Create New Folder Structure
+          command: |
+            # Create the live and backup folders
+            aws s3api put-object --bucket aws-cci-poc --key live/
+            aws s3api put-object --bucket aws-cci-poc --key backup/
       - run:
           name: Backup Current Live to Backup Folder
           command: |
-            # Empty the backup folder
-            aws s3 rm s3://iodev-aws-cci-poc/backup/ --recursive
-
-            # Move the current live content to the backup folder
-            aws s3 mv s3://iodev-aws-cci-poc/live/ s3://iodev-aws-cci-poc/backup/ --recursive
+            # Check if the live folder has any content
+            if aws s3 ls s3://iodev-aws-cci-poc/live/ | grep -q "PRE"; then
+              echo "Live folder is not empty, moving content to backup..."
+              aws s3 mv s3://iodev-aws-cci-poc/live/ s3://iodev-aws-cci-poc/backup/ --recursive
+            else
+              echo "Live folder is empty, skipping backup..."
+            fi
       - run:
           name: Clean Up Live Directory
           command: |
