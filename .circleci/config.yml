@@ -43,37 +43,39 @@ jobs:
           name: Print Working Directory
           command: pwd
       - run:
-          name: Look in Directory
-          command: ls -ltr
-      - run:
-          name: Backup Previous Build
+          name: Nuke the S3 Bucket
           command: |
-            # Empty the prod_bak directory
-            aws s3 rm s3://iodev-aws-cci-poc/prod_bak/ --recursive
-            # Move the latest build from prod_live to prod_bak
-            aws s3 mv s3://iodev-aws-cci-poc/prod_live/ s3://iodev-aws-cci-poc/prod_bak/ --recursive --exclude "current/*"
+            # Remove all objects in the S3 bucket
+            aws s3 rm s3://iodev-aws-cci-poc/ --recursive
       - run:
-          name: Clean Up prod_live Directory
+          name: Create New Folder Structure
           command: |
-            # Remove all files and folders in prod_live except the current folder
-            aws s3 rm s3://iodev-aws-cci-poc/prod_live/ --recursive --exclude "current/*"
+            # Create the live and backup folders
+            aws s3api put-object --bucket aws-cci-poc --key live/
+            aws s3api put-object --bucket aws-cci-poc --key backup/
       - run:
-          name: Create Build Folder with Git SHA
-          command: mkdir -p build_$CIRCLE_SHA1 && mv dist/* build_$CIRCLE_SHA1
-      # - run:
-      #     name: Rename Build Folder with Git SHA
-      #     command: |
-      #       export GIT_SHA=$(git rev-parse --short HEAD)
-      #       mv dist "build_${GIT_SHA}"
-      #       echo "export BUILD_DIR=build_${GIT_SHA}" >> $BASH_ENV
-      - run:
-          name: Look in Directory
-          command: ls -ltr
-      - run:
-          name: Deploy to S3
+          name: Backup Current Live to Backup Folder
           command: |
-            aws s3 cp --recursive "./build_${CIRCLE_SHA1}" "s3://iodev-aws-cci-poc/prod_live/build_${CIRCLE_SHA1}/"
-            aws s3 cp --recursive "./build_${CIRCLE_SHA1}" "s3://iodev-aws-cci-poc/prod_live/current/"
+            # Check if the live folder has any content
+            if aws s3 ls s3://iodev-aws-cci-poc/live/ | grep -q "PRE"; then
+              echo "Live folder is not empty, moving content to backup..."
+              aws s3 mv s3://iodev-aws-cci-poc/live/ s3://iodev-aws-cci-poc/backup/ --recursive
+            else
+              echo "Live folder is empty, skipping backup..."
+            fi
+      - run:
+          name: Clean Up Live Directory
+          command: |
+            # Clear the live folder
+            aws s3 rm s3://iodev-aws-cci-poc/live/ --recursive
+      - run:
+          name: Deploy New Build to Live with Cache-Control Headers
+          command: |
+            # Copy the top-level files from dist/ with no-cache headers
+            aws s3 cp dist/ s3://iodev-aws-cci-poc/live/ --recursive --exclude "assets/*" --cache-control "no-cache, no-store, must-revalidate"
+
+            # Copy the assets folder with default cache settings
+            aws s3 cp dist/assets/ s3://iodev-aws-cci-poc/live/assets/ --recursive
       - run:
           name: Invalidate CloudFront Cache
           command: |
@@ -100,18 +102,14 @@ jobs:
       - run:
           name: Rollback to Previous Version
           command: |
-            # Empty the prod_live directory
-            aws s3 rm s3://iodev-aws-cci-poc/prod_live/ --recursive --exclude "current/*"
+            # Clear the live folder
+            aws s3 rm s3://iodev-aws-cci-poc/live/ --recursive
 
-            # Move the backup from prod_bak to prod_live
-            aws s3 cp --recursive s3://iodev-aws-cci-poc/prod_bak/ s3://iodev-aws-cci-poc/prod_live/
+            # Restore the assets folder with default cache settings
+            aws s3 cp s3://iodev-aws-cci-poc/backup/assets/ s3://iodev-aws-cci-poc/live/assets/ --recursive
 
-            # Extract the latest build directory name
-            LATEST_BUILD_DIR=$(aws s3 ls s3://iodev-aws-cci-poc/prod_live/ | grep 'build_' | sort | tail -n 1 | awk '{print $2}' | sed 's|/$||')
-            echo "Latest Build Directory: ${LATEST_BUILD_DIR}"
-
-            # Copy files from the latest build directory to current
-            aws s3 cp --recursive "s3://iodev-aws-cci-poc/prod_live/${LATEST_BUILD_DIR}" "s3://iodev-aws-cci-poc/prod_live/current/"
+            # Restore the backup to the live folder with no-cache headers
+            aws s3 cp s3://iodev-aws-cci-poc/backup/ s3://iodev-aws-cci-poc/live/ --recursive --exclude "assets/*" --cache-control "no-cache, no-store, must-revalidate"
 
             # Invalidate the CloudFront cache to serve the rolled-back build
             aws cloudfront create-invalidation \
